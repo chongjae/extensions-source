@@ -178,7 +178,9 @@ class Manatoki :
     // ============================= Chapters ==============================
 
     override fun chapterListParse(response: Response): List<SChapter> {
+        // ep-row-v2--failed: 이미지 오류 등으로 비활성화된 챕터 (<a> 없이 <div>로 렌더됨) → 제외
         val elements = response.asJsoup().select("ul.ep-list-v2 li.ep-row-v2")
+            .filterNot { it.hasClass("ep-row-v2--failed") }
         val total = elements.size
         return elements.mapIndexed { index, el ->
             SChapter.create().apply {
