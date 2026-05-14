@@ -65,8 +65,7 @@ class Manatoki :
 
     private val chapterDateFormat by lazy { SimpleDateFormat("yy.MM.dd", Locale.ROOT) }
 
-    private fun isCloudflareChallenge(body: String) =
-        body.contains("Just a moment") || body.contains("challenge-platform") || body.contains("cf_chl_opt")
+    private fun isCloudflareChallenge(body: String) = body.contains("Just a moment") || body.contains("challenge-platform") || body.contains("cf_chl_opt")
 
     private fun flareSolverrInterceptor(chain: Interceptor.Chain): Response {
         val request = chain.request()
