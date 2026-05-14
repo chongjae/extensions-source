@@ -39,8 +39,7 @@ class Manatoki :
 
     private val preferences: SharedPreferences by getPreferencesLazy()
 
-    private fun getPrefBaseUrl(): String =
-        preferences.getString(PREF_BASE_URL, DEFAULT_BASE_URL)!!
+    private fun getPrefBaseUrl(): String = preferences.getString(PREF_BASE_URL, DEFAULT_BASE_URL)!!
 
     private val flareSolverrUrl: String
         get() = preferences.getString(PREF_FLARESOLVERR_URL, "")!!.trim().trimEnd('/')
@@ -94,19 +93,15 @@ class Manatoki :
 
     // ============================== Popular ==============================
     // Curated manhwa landing. URL pagination doesn't work (JS-based) → single page only.
-    override fun popularMangaRequest(page: Int): Request =
-        GET("$baseUrl/manhwa", headers)
+    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/manhwa", headers)
 
-    override fun popularMangaParse(response: Response): MangasPage =
-        MangasPage(parseCards(response.asJsoup()), hasNextPage = false)
+    override fun popularMangaParse(response: Response): MangasPage = MangasPage(parseCards(response.asJsoup()), hasNextPage = false)
 
     // ============================== Latest ===============================
     // Ongoing webtoon feed. Same single-page constraint.
-    override fun latestUpdatesRequest(page: Int): Request =
-        GET("$baseUrl/ing", headers)
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/ing", headers)
 
-    override fun latestUpdatesParse(response: Response): MangasPage =
-        MangasPage(parseCards(response.asJsoup()), hasNextPage = false)
+    override fun latestUpdatesParse(response: Response): MangasPage = MangasPage(parseCards(response.asJsoup()), hasNextPage = false)
 
     // ============================== Search ===============================
     // /search?q={query}&page=N — confirmed paginated.
@@ -176,15 +171,12 @@ class Manatoki :
     // =============================== Pages ===============================
     // sbxh1 viewer: direct <img src> inside .vw-imgs — no base64 encoding.
 
-    override fun pageListParse(response: Response): List<Page> {
-        return response.asJsoup().select("div.vw-imgs img").mapIndexed { i, img ->
-            val src = img.attr("abs:src").ifBlank { img.attr("abs:data-src") }
-            Page(i, imageUrl = src)
-        }
+    override fun pageListParse(response: Response): List<Page> = response.asJsoup().select("div.vw-imgs img").mapIndexed { i, img ->
+        val src = img.attr("abs:src").ifBlank { img.attr("abs:data-src") }
+        Page(i, imageUrl = src)
     }
 
-    override fun imageUrlParse(response: Response): String =
-        throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ============================== Settings ==============================
 
