@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.tryParse
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -60,6 +61,10 @@ class Manatoki :
         val request = chain.request()
         val fsUrl = flareSolverrUrl
         if (fsUrl.isBlank()) return chain.proceed(request)
+
+        // 만화 사이트 요청만 프록시 — 이미지 CDN(i.toonflix.app 등)은 직접 요청
+        val siteHost = baseUrl.toHttpUrlOrNull()?.host
+        if (siteHost == null || request.url.host != siteHost) return chain.proceed(request)
 
         val body = """{"cmd":"request.get","url":"${request.url}","maxTimeout":60000}"""
         val fsRequest = Request.Builder()
