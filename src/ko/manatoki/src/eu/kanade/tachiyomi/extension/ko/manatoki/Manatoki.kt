@@ -206,16 +206,18 @@ class Manatoki :
 
     // ============================== Helpers ==============================
 
-    private fun parseCards(doc: Document): List<SManga> = doc.select("div.card-grid a.card").map { card ->
-        SManga.create().apply {
-            setUrlWithoutDomain(card.attr("abs:href"))
-            title = card.selectFirst("p.subject")?.text()
-                ?: card.select(".thumb img").last()?.attr("alt")
-                ?: throw Exception("Manga title not found")
-            thumbnail_url = card.selectFirst(".thumb img:not(.platform-icon)")
-                ?.attr("abs:src")
+    private fun parseCards(doc: Document): List<SManga> = doc.select("div.card-grid a.card")
+        .filter { !it.attr("href").startsWith("/novel/") } // 소설은 이미지 없어 제외
+        .map { card ->
+            SManga.create().apply {
+                setUrlWithoutDomain(card.attr("abs:href"))
+                title = card.selectFirst("p.subject")?.text()
+                    ?: card.select(".thumb img").last()?.attr("alt")
+                    ?: throw Exception("Manga title not found")
+                thumbnail_url = card.selectFirst(".thumb img:not(.platform-icon)")
+                    ?.attr("abs:src")
+            }
         }
-    }
 
     companion object {
         private const val DEFAULT_BASE_URL = "https://sbxh1.com"
