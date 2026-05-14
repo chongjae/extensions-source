@@ -45,6 +45,17 @@ class Manatoki :
     private val flareSolverrUrl: String
         get() = preferences.getString(PREF_FLARESOLVERR_URL, "")!!.trim().trimEnd('/')
 
+    private fun fsAuthHeader(): String? {
+        val user = preferences.getString(PREF_FLARESOLVERR_USER, "")!!
+        val pass = preferences.getString(PREF_FLARESOLVERR_PASS, "")!!
+        if (user.isBlank() || pass.isBlank()) return null
+        return okhttp3.Credentials.basic(user, pass)
+    }
+
+    private fun Request.Builder.addFsAuth() = apply {
+        fsAuthHeader()?.let { header("Authorization", it) }
+    }
+
     // FlareSolverr 공유 세션 — 처음 한 번만 브라우저 생성, 이후 재사용
     @Volatile private var fsSessionReady = false
 
@@ -57,6 +68,7 @@ class Manatoki :
                 val req = Request.Builder()
                     .url("$fsUrl/v1")
                     .header("Content-Type", "application/json")
+                    .addFsAuth()
                     .post(body.toRequestBody("application/json".toMediaType()))
                     .build()
                 val json = org.json.JSONObject(network.client.newCall(req).execute().body.string())
@@ -96,6 +108,7 @@ class Manatoki :
         val fsRequest = Request.Builder()
             .url("$fsUrl/v1")
             .header("Content-Type", "application/json")
+            .addFsAuth()
             .post(reqBody.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -227,9 +240,26 @@ class Manatoki :
         androidx.preference.EditTextPreference(screen.context).apply {
             key = PREF_FLARESOLVERR_URL
             title = "FlareSolverr URL"
-            summary = "Cloudflare 우회용 FlareSolverr 주소 (예: https://flaresolver.example.com). 비워두면 앱 내장 우회 방식 사용"
+            summary = "Cloudflare 우회용 FlareSolverr 주소 (예: http://서버:8192). 비워두면 앱 내장 우회 방식 사용"
             setDefaultValue("")
             dialogTitle = "FlareSolverr URL"
+        }.also { screen.addPreference(it) }
+
+        androidx.preference.EditTextPreference(screen.context).apply {
+            key = PREF_FLARESOLVERR_USER
+            title = "FlareSolverr 사용자명"
+            summary = "Basic Auth 사용자명 (인증 없으면 비워두기)"
+            setDefaultValue("")
+            dialogTitle = "FlareSolverr 사용자명"
+        }.also { screen.addPreference(it) }
+
+        androidx.preference.EditTextPreference(screen.context).apply {
+            key = PREF_FLARESOLVERR_PASS
+            title = "FlareSolverr 비밀번호"
+            summary = "Basic Auth 비밀번호 (인증 없으면 비워두기)"
+            setDefaultValue("")
+            dialogTitle = "FlareSolverr 비밀번호"
+            setOnBindEditTextListener { it.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
         }.also { screen.addPreference(it) }
     }
 
@@ -252,6 +282,8 @@ class Manatoki :
         private const val DEFAULT_BASE_URL = "https://sbxh1.com"
         private const val PREF_BASE_URL = "pref_base_url"
         private const val PREF_FLARESOLVERR_URL = "pref_flaresolverr_url"
+        private const val PREF_FLARESOLVERR_USER = "pref_flaresolverr_user"
+        private const val PREF_FLARESOLVERR_PASS = "pref_flaresolverr_pass"
         private const val FS_SESSION = "newtoki"
     }
 }
