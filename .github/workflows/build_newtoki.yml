@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -32,9 +32,18 @@ jobs:
       - name: Build APK
         run: ./gradlew :src:ko:manatoki:assembleRelease
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Find APK
+        id: apk
+        run: |
+          APK=$(find src/ko/manatoki/build/outputs/apk -name "*.apk" | head -1)
+          echo "path=$APK" >> $GITHUB_OUTPUT
+          echo "name=$(basename $APK)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: newtoki-apk
-          path: "src/ko/manatoki/build/outputs/apk/**/*.apk"
-          retention-days: 7
+          tag_name: newtoki-latest
+          name: Newtoki APK (latest)
+          body: "sbxh1.com (뉴토끼) 파서 extension APK"
+          files: ${{ steps.apk.outputs.path }}
+          make_latest: true
