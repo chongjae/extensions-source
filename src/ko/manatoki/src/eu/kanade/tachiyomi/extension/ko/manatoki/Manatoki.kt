@@ -45,8 +45,16 @@ class Manatoki :
     private val flareSolverrUrl: String
         get() = preferences.getString(PREF_FLARESOLVERR_URL, "")!!.trim().trimEnd('/')
 
-    // When FlareSolverr URL is configured, requests are proxied through it to bypass Cloudflare.
-    // Falls back to the built-in cloudflareClient bypass otherwise.
+    private fun getCfCookies(): String? = preferences.getString(PREF_CF_COOKIES, null)
+    private fun getCfUserAgent(): String? = preferences.getString(PREF_CF_UA, null)
+    private fun saveCfSession(cookies: String, ua: String) {
+        preferences.edit()
+            .putString(PREF_CF_COOKIES, cookies)
+            .putString(PREF_CF_UA, ua)
+            .apply()
+    }
+
+    // 캐시된 cf_clearance 쿠키로 직접 요청 → FlareSolverr는 쿠키 만료 시에만 호출
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .rateLimit(2)
         .addInterceptor(::flareSolverrInterceptor)
@@ -57,15 +65,39 @@ class Manatoki :
 
     private val chapterDateFormat by lazy { SimpleDateFormat("yy.MM.dd", Locale.ROOT) }
 
+    private fun isCloudflareChallenge(body: String) =
+        body.contains("Just a moment") || body.contains("challenge-platform") || body.contains("cf_chl_opt")
+
     private fun flareSolverrInterceptor(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val fsUrl = flareSolverrUrl
-        if (fsUrl.isBlank()) return chain.proceed(request)
 
-        // 만화 사이트 요청만 프록시 — 이미지 CDN(i.toonflix.app 등)은 직접 요청
+        // 이미지 CDN은 직접 요청 (FlareSolverr 불필요)
         val siteHost = baseUrl.toHttpUrlOrNull()?.host
         if (siteHost == null || request.url.host != siteHost) return chain.proceed(request)
 
+        // 1. 캐시된 cf_clearance 쿠키로 직접 요청 (FlareSolverr 우회, 빠름)
+        val cfCookies = getCfCookies()
+        val cfUa = getCfUserAgent()
+        if (cfCookies != null && cfUa != null) {
+            val directReq = request.newBuilder()
+                .header("Cookie", cfCookies)
+                .header("User-Agent", cfUa)
+                .build()
+            try {
+                val resp = network.client.newCall(directReq).execute()
+                val bodyStr = resp.peekBody(Long.MAX_VALUE).string()
+                if (resp.isSuccessful && !isCloudflareChallenge(bodyStr)) return resp
+                resp.close()
+            } catch (_: Exception) {}
+            // 쿠키 만료 — 캐시 지우고 재획득
+            preferences.edit().remove(PREF_CF_COOKIES).remove(PREF_CF_UA).apply()
+        }
+
+        // 2. FlareSolverr URL 없으면 내장 cloudflareClient(WebView)가 처리
+        val fsUrl = flareSolverrUrl
+        if (fsUrl.isBlank()) return chain.proceed(request)
+
+        // 3. FlareSolverr로 새 쿠키 획득 후 캐시
         val body = """{"cmd":"request.get","url":"${request.url}","maxTimeout":60000}"""
         val fsRequest = Request.Builder()
             .url("$fsUrl/v1")
@@ -78,15 +110,22 @@ class Manatoki :
             val json = org.json.JSONObject(fsRaw.body.string())
             if (json.optString("status") == "ok") {
                 val solution = json.getJSONObject("solution")
+                val ua = solution.optString("userAgent", "")
+                val cookiesArr = solution.optJSONArray("cookies")
+                if (cookiesArr != null && ua.isNotBlank()) {
+                    val cookieStr = (0 until cookiesArr.length())
+                        .joinToString("; ") {
+                            val c = cookiesArr.getJSONObject(it)
+                            "${c.getString("name")}=${c.getString("value")}"
+                        }
+                    saveCfSession(cookieStr, ua)
+                }
                 Response.Builder()
                     .request(request)
                     .protocol(Protocol.HTTP_1_1)
                     .code(solution.optInt("status", 200))
                     .message("OK")
-                    .body(
-                        solution.getString("response")
-                            .toResponseBody("text/html; charset=utf-8".toMediaType()),
-                    )
+                    .body(solution.getString("response").toResponseBody("text/html; charset=utf-8".toMediaType()))
                     .build()
             } else {
                 chain.proceed(request)
@@ -223,5 +262,7 @@ class Manatoki :
         private const val DEFAULT_BASE_URL = "https://sbxh1.com"
         private const val PREF_BASE_URL = "pref_base_url"
         private const val PREF_FLARESOLVERR_URL = "pref_flaresolverr_url"
+        private const val PREF_CF_COOKIES = "pref_cf_cookies"
+        private const val PREF_CF_UA = "pref_cf_ua"
     }
 }
