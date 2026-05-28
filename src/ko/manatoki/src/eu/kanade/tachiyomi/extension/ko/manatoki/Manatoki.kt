@@ -162,8 +162,7 @@ class Manatoki :
     }
 
     // RSC 페이로드에서 imagesToken 추출 (이스케이프된 따옴표 대응)
-    private fun extractImagesToken(html: String): String? =
-        Regex("""imagesToken\\":?\\"?([A-Za-z0-9_\-.=+/]{20,})""").find(html)?.groupValues?.get(1)
+    private fun extractImagesToken(html: String): String? = Regex("""imagesToken\\":?\\"?([A-Za-z0-9_\-.=+/]{20,})""").find(html)?.groupValues?.get(1)
 
     // 패치된 FlareSolverr를 통해 /api/manhwa-images 호출
     // FlareSolverr가 nv-issue → HMAC 계산 → API 호출을 브라우저 JS로 처리
