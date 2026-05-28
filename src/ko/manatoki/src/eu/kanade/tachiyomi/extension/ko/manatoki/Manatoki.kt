@@ -117,12 +117,37 @@ class Manatoki :
             val json = org.json.JSONObject(fsRaw.body.string())
             if (json.optString("status") == "ok") {
                 val solution = json.getJSONObject("solution")
+                val html = solution.getString("response")
+
+                // 뷰어 페이지(/manhwa/.../... 또는 /webtoon/.../..)는 이미지 API를 별도 호출
+                val segments = request.url.pathSegments
+                if (segments.size >= 3 && (segments[0] == "manhwa" || segments[0] == "webtoon")) {
+                    val imagesToken = extractImagesToken(html)
+                    if (imagesToken != null) {
+                        val imageHtml = fetchImagesViaFlareSolverr(
+                            fsUrl = fsUrl,
+                            imagesToken = imagesToken,
+                            workId = segments[1],
+                            episodeId = segments[2],
+                        )
+                        if (imageHtml != null) {
+                            return Response.Builder()
+                                .request(request)
+                                .protocol(Protocol.HTTP_1_1)
+                                .code(200)
+                                .message("OK")
+                                .body(imageHtml.toResponseBody("text/html; charset=utf-8".toMediaType()))
+                                .build()
+                        }
+                    }
+                }
+
                 Response.Builder()
                     .request(request)
                     .protocol(Protocol.HTTP_1_1)
                     .code(solution.optInt("status", 200))
                     .message("OK")
-                    .body(solution.getString("response").toResponseBody("text/html; charset=utf-8".toMediaType()))
+                    .body(html.toResponseBody("text/html; charset=utf-8".toMediaType()))
                     .build()
             } else if ((json.optString("message")).contains("session", true)) {
                 // 세션 사라짐(FlareSolverr 재시작 등) → 재생성 후 1회 재시도
@@ -133,6 +158,73 @@ class Manatoki :
             }
         } catch (e: Exception) {
             chain.proceed(request)
+        }
+    }
+
+    // RSC 페이로드에서 imagesToken 추출 (이스케이프된 따옴표 대응)
+    private fun extractImagesToken(html: String): String? =
+        Regex("""imagesToken\\":?\\"?([A-Za-z0-9_\-.=+/]{20,})""").find(html)?.groupValues?.get(1)
+
+    // 패치된 FlareSolverr를 통해 /api/manhwa-images 호출
+    // FlareSolverr가 nv-issue → HMAC 계산 → API 호출을 브라우저 JS로 처리
+    private fun fetchImagesViaFlareSolverr(
+        fsUrl: String,
+        imagesToken: String,
+        workId: String,
+        episodeId: String,
+    ): String? {
+        val postBody = org.json.JSONObject().apply {
+            put("imagesToken", imagesToken)
+            put("workId", workId)
+            put("episodeId", episodeId)
+        }.toString()
+
+        val fsReqBody = """{"cmd":"request.post","url":"$baseUrl/api/manhwa-images","session":"$FS_SESSION","maxTimeout":30000,"postData":${org.json.JSONObject.quote(postBody)}}"""
+        val fsRequest = Request.Builder()
+            .url("$fsUrl/v1")
+            .header("Content-Type", "application/json")
+            .addFsAuth()
+            .post(fsReqBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        return try {
+            val fsRaw = network.client.newCall(fsRequest).execute()
+            val fsJson = org.json.JSONObject(fsRaw.body.string())
+            if (fsJson.optString("status") != "ok") return null
+
+            val responseHtml = fsJson.getJSONObject("solution").getString("response")
+            parseApiResponseToHtml(responseHtml)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // <pre id="fs_result">JSON</pre> 또는 원시 JSON에서 이미지 URL 추출 후 가짜 HTML 빌드
+    private fun parseApiResponseToHtml(responseHtml: String): String? {
+        val jsonStr = try {
+            val doc = org.jsoup.Jsoup.parse(responseHtml)
+            doc.selectFirst("pre#fs_result")?.text()
+                ?: doc.selectFirst("pre")?.text()
+                ?: doc.body().text()
+        } catch (_: Exception) {
+            responseHtml
+        }
+
+        return try {
+            val apiJson = org.json.JSONObject(jsonStr)
+            if (!apiJson.optBoolean("ok", false)) return null
+            val images = apiJson.optJSONArray("images") ?: return null
+            buildString {
+                append("<html><body><div class=\"vw-imgs\">")
+                for (i in 0 until images.length()) {
+                    val img = images.optJSONObject(i) ?: continue
+                    val src = img.optString("src").ifBlank { null } ?: continue
+                    append("""<img src="$src">""")
+                }
+                append("</div></body></html>")
+            }.takeIf { it.contains("<img") }
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -216,7 +308,7 @@ class Manatoki :
     }
 
     // =============================== Pages ===============================
-    // sbxh1 viewer: direct <img src> inside .vw-imgs — no base64 encoding.
+    // 인터셉터가 API 호출 후 <div class="vw-imgs"><img src="...">... 를 포함한 가짜 HTML을 반환.
 
     override fun pageListParse(response: Response): List<Page> = response.asJsoup().select("div.vw-imgs img").mapIndexed { i, img ->
         val src = img.attr("abs:src").ifBlank { img.attr("abs:data-src") }
@@ -279,7 +371,7 @@ class Manatoki :
         }
 
     companion object {
-        private const val DEFAULT_BASE_URL = "https://sbxh1.com"
+        private const val DEFAULT_BASE_URL = "https://sbxh3.com"
         private const val PREF_BASE_URL = "pref_base_url"
         private const val PREF_FLARESOLVERR_URL = "pref_flaresolverr_url"
         private const val PREF_FLARESOLVERR_USER = "pref_flaresolverr_user"
