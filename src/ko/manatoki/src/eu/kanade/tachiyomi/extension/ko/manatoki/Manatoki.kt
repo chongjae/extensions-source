@@ -104,7 +104,12 @@ class Manatoki :
         // 공유 세션 준비 (이미 준비됐으면 즉시 반환)
         ensureFsSession(fsUrl)
 
-        val reqBody = """{"cmd":"request.get","url":"${request.url}","session":"$FS_SESSION","maxTimeout":60000}"""
+        // 뷰어 페이지(/manhwa/.../... 또는 /webtoon/.../..)는 waitInSeconds:5 추가
+        // React가 이미지를 렌더링할 시간을 줌 (ad-ack 이벤트로 즉시 API 호출 유도)
+        val segments = request.url.pathSegments
+        val isViewer = segments.size >= 3 && (segments[0] == "manhwa" || segments[0] == "webtoon")
+        val waitSeconds = if (isViewer) ""","waitInSeconds":5""" else ""
+        val reqBody = """{"cmd":"request.get","url":"${request.url}","session":"$FS_SESSION","maxTimeout":60000$waitSeconds}"""
         val fsRequest = Request.Builder()
             .url("$fsUrl/v1")
             .header("Content-Type", "application/json")
@@ -119,9 +124,21 @@ class Manatoki :
                 val solution = json.getJSONObject("solution")
                 val html = solution.getString("response")
 
-                // 뷰어 페이지(/manhwa/.../... 또는 /webtoon/.../..)는 이미지 API를 별도 호출
-                val segments = request.url.pathSegments
-                if (segments.size >= 3 && (segments[0] == "manhwa" || segments[0] == "webtoon")) {
+                // 뷰어 페이지: waitInSeconds:5 후 React가 이미지를 렌더링하면 바로 반환
+                // 실패 시 API 직접 호출로 폴백
+                if (isViewer) {
+                    // 1순위: FlareSolverr가 이미 이미지 렌더링함
+                    val domImages = org.jsoup.Jsoup.parse(html).select("div.vw-imgs img[src]")
+                    if (domImages.isNotEmpty()) {
+                        return Response.Builder()
+                            .request(request)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(solution.optInt("status", 200))
+                            .message("OK")
+                            .body(html.toResponseBody("text/html; charset=utf-8".toMediaType()))
+                            .build()
+                    }
+                    // 2순위: 이미지가 없으면 API 직접 호출
                     val imagesToken = extractImagesToken(html)
                     if (imagesToken != null) {
                         val imageHtml = fetchImagesViaFlareSolverr(
