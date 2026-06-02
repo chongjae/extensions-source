@@ -39,6 +39,11 @@ jobs:
           echo "path=$APK" >> $GITHUB_OUTPUT
           echo "name=$(basename $APK)" >> $GITHUB_OUTPUT
 
+      - name: Delete existing release
+        run: gh release delete newtoki-latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
