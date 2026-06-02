@@ -31,7 +31,8 @@ class KakaoWebtoon : HttpSource() {
     private val webAppId = "48432be89b3a9cc4b1984569f22ed2cb"
 
     // Cached Kakao user ID (Long as string) for image decryption
-    @Volatile private var cachedUserId: String? = null
+    @Volatile
+    private var cachedUserId: String? = null
 
     override val client = network.cloudflareClient.newBuilder()
         .addInterceptor(ImageInterceptor)

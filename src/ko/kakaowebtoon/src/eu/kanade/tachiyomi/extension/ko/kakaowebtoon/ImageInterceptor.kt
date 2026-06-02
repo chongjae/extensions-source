@@ -104,4 +104,3 @@ object ImageInterceptor : Interceptor {
         return chunked(2).map { it.toInt(16).toByte() }.toByteArray()
     }
 }
-
