@@ -142,7 +142,10 @@ data class EpisodeItem(
     val readDateTime: String? = null,
 ) {
     fun toSChapter(contentId: Int): SChapter = SChapter.create().apply {
-        url = "/$contentId/${this@EpisodeItem.id}"
+        // Append /w marker for locked waitForFree episodes so pageListRequest knows to use a ticket.
+        // The API is idempotent (alreadyRented=true if already accessible) so re-calling is safe.
+        val locked = useType == "waitForFree" && !this@EpisodeItem.readable
+        url = if (locked) "/$contentId/${this@EpisodeItem.id}/w" else "/$contentId/${this@EpisodeItem.id}"
         name = if (title.isNotBlank()) title else "화 $episodeNo"
         chapter_number = episodeNo.toFloat()
         scanlator = when (useType) {

@@ -119,7 +119,7 @@ class KakaoWebtoon : HttpSource() {
             .firstOrNull()?.toIntOrNull() ?: 0
 
         return episodes
-            .filter { it.readable }
+            .filter { it.readable || it.useType == "waitForFree" }
             .map { it.toSChapter(contentId) }
     }
 
@@ -131,7 +131,13 @@ class KakaoWebtoon : HttpSource() {
     // ─── Pages (images) ──────────────────────────────────────────────────────
 
     override fun pageListRequest(chapter: SChapter): Request {
-        val episodeId = chapter.url.trimStart('/').substringAfter('/')
+        val urlParts = chapter.url.trimStart('/').split('/')
+        val episodeId = urlParts[1]
+        val isLockedWaitForFree = urlParts.getOrNull(2) == "w"
+
+        if (isLockedWaitForFree) {
+            useWaitForFreeTicket(episodeId.toLong())
+        }
 
         val nonce = UUID.randomUUID().toString().replace("-", "").take(16)
         val timestamp = System.currentTimeMillis().toString()
@@ -145,6 +151,26 @@ class KakaoWebtoon : HttpSource() {
             "?_nonce=$nonce&_ts=$timestamp"
 
         return POST(url, apiHeaders(), requestBody)
+    }
+
+    /**
+     * Calls the Kakao Webtoon "pass" API to consume a 기다무 (wait-for-free) ticket for the
+     * given episode. Only called when the user actively opens a locked waitForFree chapter.
+     *
+     * The API is idempotent: if the episode is already accessible (e.g., wait period elapsed or
+     * ticket already used), the server returns alreadyRented=true and no ticket is consumed.
+     *
+     * Endpoint: POST /episode/v3/episodes/{id}/pass
+     * ticketType value is the lodash snakeCase of "waitForFree" → "wait_for_free"
+     */
+    private fun useWaitForFreeTicket(episodeId: Long) {
+        runCatching {
+            val body = """{"readAgain":false,"ticketType":"wait_for_free"}"""
+                .toRequestBody("application/json".toMediaType())
+            client.newCall(
+                POST("$apiUrl/episode/v3/episodes/$episodeId/pass", apiHeaders(), body),
+            ).execute().close()
+        }
     }
 
     override fun pageListParse(response: Response): List<Page> {
