@@ -120,7 +120,21 @@ data class BadgeItem(
 // ─── Episode List ─────────────────────────────────────────────────────────────
 
 @Serializable
-data class EpisodeListResponse(val data: EpisodeListData? = null)
+data class EpisodeListResponse(
+    val data: EpisodeListData? = null,
+    val meta: EpisodeListMeta? = null,
+)
+
+@Serializable
+data class EpisodeListMeta(val pagination: EpisodeListPagination? = null)
+
+@Serializable
+data class EpisodeListPagination(
+    val offset: Int = 0,
+    val limit: Int = 30,
+    val totalCount: Int? = null,
+    val last: Boolean = true,
+)
 
 @Serializable
 data class EpisodeListData(

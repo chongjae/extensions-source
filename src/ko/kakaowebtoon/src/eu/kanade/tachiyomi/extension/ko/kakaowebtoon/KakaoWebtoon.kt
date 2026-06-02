@@ -15,6 +15,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import rx.Observable
 import java.util.UUID
 
 class KakaoWebtoon : HttpSource() {
@@ -103,25 +104,38 @@ class KakaoWebtoon : HttpSource() {
 
     // ─── Chapter List ─────────────────────────────────────────────────────────
 
-    override fun chapterListRequest(manga: SManga): Request {
+    // Overrides fetchChapterList to paginate all episodes (API returns 30 per page).
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Observable.fromCallable { fetchAllEpisodes(manga) }
+
+    private fun fetchAllEpisodes(manga: SManga): List<SChapter> {
         val id = manga.url.trimStart('/')
-        return GET(
-            "$apiUrl/episode/v2/views/content-home/contents/$id/episodes?sort=NO",
-            apiHeaders(),
-        )
+        val contentId = id.toIntOrNull() ?: 0
+        val chapters = mutableListOf<SChapter>()
+        var offset = 0
+
+        while (true) {
+            val url = "$apiUrl/episode/v2/views/content-home/contents/$id/episodes" +
+                "?sort=NO&offset=$offset&limit=$EPISODE_LIMIT"
+            val result = client.newCall(GET(url, apiHeaders())).execute()
+                .parseAs<EpisodeListResponse>()
+            val episodes = result.data?.episodes ?: break
+
+            chapters.addAll(
+                episodes
+                    .filter { it.readable || it.isWaitForFree }
+                    .map { it.toSChapter(contentId) },
+            )
+
+            val isLast = result.meta?.pagination?.last ?: true
+            if (isLast || episodes.isEmpty()) break
+            offset += EPISODE_LIMIT
+        }
+
+        return chapters
     }
 
-    override fun chapterListParse(response: Response): List<SChapter> {
-        val result = response.parseAs<EpisodeListResponse>()
-        val episodes = result.data?.episodes ?: return emptyList()
-        val contentId = response.request.url.pathSegments
-            .dropWhile { it != "contents" }.drop(1)
-            .firstOrNull()?.toIntOrNull() ?: 0
-
-        return episodes
-            .filter { it.readable || it.isWaitForFree }
-            .map { it.toSChapter(contentId) }
-    }
+    override fun chapterListRequest(manga: SManga): Request = throw UnsupportedOperationException()
+    override fun chapterListParse(response: Response): List<SChapter> = throw UnsupportedOperationException()
 
     override fun getChapterUrl(chapter: SChapter): String {
         val contentId = chapter.url.trimStart('/').substringBefore('/')
@@ -256,5 +270,6 @@ class KakaoWebtoon : HttpSource() {
 
     companion object {
         private const val PAGE_SIZE = 20
+        private const val EPISODE_LIMIT = 30
     }
 }
