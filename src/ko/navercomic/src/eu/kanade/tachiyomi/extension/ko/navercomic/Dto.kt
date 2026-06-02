@@ -40,6 +40,7 @@ class MangaChapter(
     val serviceDateDescription: String,
     private val subtitle: String,
     private val no: Int,
+    val charge: Boolean = false,
 ) {
     fun toSChapter(mType: String, titleId: Int) = SChapter.create().apply {
         url = "/$mType/detail?titleId=$titleId&no=$no"

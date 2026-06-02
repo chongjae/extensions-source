@@ -54,11 +54,13 @@ abstract class NaverComicBase(protected val mType: String) : HttpSource() {
 
         while (true) {
             chapters.addAll(
-                result.articleList.map { chapter ->
-                    chapter.toSChapter(mType, result.titleId).apply {
-                        date_upload = parseChapterDate(chapter.serviceDateDescription)
-                    }
-                },
+                result.articleList
+                    .filter { !it.charge }
+                    .map { chapter ->
+                        chapter.toSChapter(mType, result.titleId).apply {
+                            date_upload = parseChapterDate(chapter.serviceDateDescription)
+                        }
+                    },
             )
 
             if (!result.hasNextPage) break
