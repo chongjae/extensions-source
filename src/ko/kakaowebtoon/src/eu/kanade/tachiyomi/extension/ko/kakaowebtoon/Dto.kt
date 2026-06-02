@@ -33,7 +33,7 @@ data class ContentSummary(
     val authors: List<AuthorItem> = emptyList(),
 ) {
     fun toSManga(): SManga = SManga.create().apply {
-        url = "/${id}"
+        url = "/$id"
         title = this@ContentSummary.title
         thumbnail_url = featuredCharacterImageA ?: backgroundImage
         author = authors.filter { it.type == "AUTHOR" }.joinToString { it.name }
@@ -92,8 +92,11 @@ data class ContentDetail(
         genre = this@ContentDetail.genre
         status = when (this@ContentDetail.status) {
             "SELLING" -> {
-                if (badges.any { it.title == "EPISODES_PUBLISHING" }) SManga.ONGOING
-                else SManga.UNKNOWN
+                if (badges.any { it.title == "EPISODES_PUBLISHING" }) {
+                    SManga.ONGOING
+                } else {
+                    SManga.UNKNOWN
+                }
             }
             "COMPLETED" -> SManga.COMPLETED
             else -> SManga.UNKNOWN
@@ -139,7 +142,7 @@ data class EpisodeItem(
     val readDateTime: String? = null,
 ) {
     fun toSChapter(contentId: Int): SChapter = SChapter.create().apply {
-        url = "/${contentId}/${this@EpisodeItem.id}"
+        url = "/$contentId/${this@EpisodeItem.id}"
         name = if (title.isNotBlank()) title else "화 $episodeNo"
         chapter_number = episodeNo.toFloat()
         scanlator = when (useType) {

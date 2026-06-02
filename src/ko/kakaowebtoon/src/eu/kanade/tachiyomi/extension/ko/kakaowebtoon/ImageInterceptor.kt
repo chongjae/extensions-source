@@ -64,12 +64,10 @@ object ImageInterceptor : Interceptor {
             .build()
     }
 
-    private fun aesCbcDecrypt(data: ByteArray, key: ByteArray, iv: ByteArray): ByteArray? {
-        return runCatching {
-            AES.apply { init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv)) }
-                .doFinal(data)
-        }.getOrNull()
-    }
+    private fun aesCbcDecrypt(data: ByteArray, key: ByteArray, iv: ByteArray): ByteArray? = runCatching {
+        AES.apply { init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv)) }
+            .doFinal(data)
+    }.getOrNull()
 
     // ─── Key derivation helpers ───────────────────────────────────────────────
 
@@ -81,10 +79,10 @@ object ImageInterceptor : Interceptor {
         aid: String,
         zid: String,
     ): Pair<ByteArray, ByteArray>? {
-        val masterInput = "${userId ?: episodeId}${episodeId}${timestamp}"
+        val masterInput = "${userId ?: episodeId}${episodeId}$timestamp"
         val masterKey = sha256(masterInput)
 
-        val ivInput = "${nonce}${timestamp}"
+        val ivInput = "${nonce}$timestamp"
         val masterIV = sha256(ivInput).copyOf(16)
 
         val encAid = android.util.Base64.decode(aid, android.util.Base64.DEFAULT)
@@ -96,8 +94,7 @@ object ImageInterceptor : Interceptor {
         return Pair(imageKey, imageIV)
     }
 
-    private fun sha256(input: String): ByteArray =
-        MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.ISO_8859_1))
+    private fun sha256(input: String): ByteArray = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.ISO_8859_1))
 
     private fun String.hexToBytes(): ByteArray {
         check(length % 2 == 0) { "Odd-length hex string" }

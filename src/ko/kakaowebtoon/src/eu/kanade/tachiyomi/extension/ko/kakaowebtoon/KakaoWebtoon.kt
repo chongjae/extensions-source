@@ -48,8 +48,7 @@ class KakaoWebtoon : HttpSource() {
 
     // ─── Popular ─────────────────────────────────────────────────────────────
 
-    override fun popularMangaRequest(page: Int): Request =
-        GET("$apiUrl/section/v4/sections?placement=rank_all", apiHeaders())
+    override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/section/v4/sections?placement=rank_all", apiHeaders())
 
     override fun popularMangaParse(response: Response): MangasPage {
         val result = response.parseAs<SectionResponse>()
@@ -62,8 +61,7 @@ class KakaoWebtoon : HttpSource() {
 
     // ─── Latest ──────────────────────────────────────────────────────────────
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        GET("$apiUrl/section/v4/sections?placement=timetable_new", apiHeaders())
+    override fun latestUpdatesRequest(page: Int): Request = GET("$apiUrl/section/v4/sections?placement=timetable_new", apiHeaders())
 
     override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
@@ -101,8 +99,7 @@ class KakaoWebtoon : HttpSource() {
         }
     }
 
-    override fun getMangaUrl(manga: SManga): String =
-        "$baseUrl/content/webtoon/${manga.url.trimStart('/')}"
+    override fun getMangaUrl(manga: SManga): String = "$baseUrl/content/webtoon/${manga.url.trimStart('/')}"
 
     // ─── Chapter List ─────────────────────────────────────────────────────────
 
