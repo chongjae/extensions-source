@@ -141,17 +141,23 @@ data class EpisodeItem(
     @SerialName("useType") val useType: String? = null,
     val readDateTime: String? = null,
 ) {
+    // API returns useType as either camelCase ("waitForFree") or SCREAMING_SNAKE ("WAIT_FOR_FREE").
+    // Normalize by stripping underscores and lowercasing for robust comparison.
+    private val useTypeNorm: String get() = useType?.lowercase()?.replace("_", "") ?: ""
+
+    val isWaitForFree: Boolean get() = useTypeNorm == "waitforfree"
+
     fun toSChapter(contentId: Int): SChapter = SChapter.create().apply {
         // Append /w marker for locked waitForFree episodes so pageListRequest knows to use a ticket.
         // The API is idempotent (alreadyRented=true if already accessible) so re-calling is safe.
-        val locked = useType == "waitForFree" && !this@EpisodeItem.readable
+        val locked = this@EpisodeItem.isWaitForFree && !this@EpisodeItem.readable
         url = if (locked) "/$contentId/${this@EpisodeItem.id}/w" else "/$contentId/${this@EpisodeItem.id}"
         name = if (title.isNotBlank()) title else "화 $episodeNo"
         chapter_number = episodeNo.toFloat()
-        scanlator = when (useType) {
-            "rental", "pay" -> "유료"
-            "waitForFree" -> "기다무"
-            "freePublishing" -> "연재무료"
+        scanlator = when {
+            useTypeNorm == "rental" || useTypeNorm == "pay" -> "유료"
+            isWaitForFree -> "기다무"
+            useTypeNorm == "freepublishing" -> "연재무료"
             else -> null
         }
     }

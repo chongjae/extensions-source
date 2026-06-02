@@ -119,7 +119,7 @@ class KakaoWebtoon : HttpSource() {
             .firstOrNull()?.toIntOrNull() ?: 0
 
         return episodes
-            .filter { it.readable || it.useType == "waitForFree" }
+            .filter { it.readable || it.isWaitForFree }
             .map { it.toSChapter(contentId) }
     }
 
