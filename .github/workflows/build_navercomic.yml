@@ -46,4 +46,4 @@ jobs:
           name: NaverComic APK (latest)
           body: "네이버 웹툰 extension APK (무료 회차만 표시)"
           files: ${{ steps.apk.outputs.path }}
-          make_latest: true
+          make_latest: false

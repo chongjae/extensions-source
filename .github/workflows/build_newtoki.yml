@@ -46,4 +46,4 @@ jobs:
           name: Newtoki APK (latest)
           body: "sbxh1.com (뉴토끼) 파서 extension APK"
           files: ${{ steps.apk.outputs.path }}
-          make_latest: true
+          make_latest: false
